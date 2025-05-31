@@ -1,6 +1,6 @@
 {
     "name": "avexsoft\/filament-purl",
-    "description": ":package_description",
+    "description": "CRUD permalinks (also known as persistent URLs) to your filament project",
     "license": "MIT",
     "authors": [
         {
