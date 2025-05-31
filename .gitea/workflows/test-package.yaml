@@ -1,0 +1,183 @@
+# https://github.com/shivammathur/set up-php/blob/master/examples/laravel-mysql.yml
+name: test-package.yaml
+run-name: ${{ github.actor }} is testing out Gitea Actions 🚀
+on:
+  push:
+    branches-ignore:
+      - master
+      - main
+jobs:
+  test:
+    # if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    name: Test Laravel project or package with PHPUnit
+    # services:
+    #   mysql:
+    #     image: mysql:latest
+    #     env:
+    #       MYSQL_ALLOW_EMPTY_PASSWORD: false
+    #       MYSQL_ROOT_PASSWORD: password
+    #       MYSQL_DATABASE: laravel
+    #     ports:
+    #       - 3306/tcp
+    #     options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+    #   redis:
+    #     image: redis
+    #     ports:
+    #       - 6379/tcp
+    #     options: --health-cmd="redis-cli ping" --health-interval=10s --health-timeout=5s --health-retries=3
+    # strategy:
+    #   fail-fast: false
+    #   matrix:
+    #     php-versions: ['7.4', '8.0', '8.1']
+    env:
+      TERM: xterm-256color
+    steps:
+      # - name: Triggered by a ${{ github.event_name }} event.
+      #   run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
+      # - run: echo "🐧 This job is now running on a ${{ runner.os }} server hosted by Gitea!"
+      # - run: echo "🔎 The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
+      # - run: echo "💡 The ${{ github.repository }} repository has been cloned to the runner."
+      # - run: echo "🖥️ The workflow is now ready to test your code on the runner."
+      # - run: echo "🍏 This job's status is ${{ job.status }}."
+
+      # - name: Boot local dependencies
+      #   if: ${{ env.ACT }}
+      #   run: |
+      #     sudo service mysql start
+      #     sudo service redis-server start
+
+      # - name: Configure local dependencies
+      #   if: ${{ env.ACT }}
+      #   run: |
+      #     sudo -u postgres psql -U postgres -d postgres -c "alter user postgres with password 'password';"
+
+      # - name: Start mysql service
+      #   run: |
+      #     ps axf
+      #     sudo service mysqld start
+
+      # ----- START -----
+
+      # - name: Debugging helper, usually skipped
+      #   run: |
+      #     printf "${{ secrets.REPORTING_URL }}/notify\n"
+
+      #     curl \
+      #       -F "action=notify" \
+      #       --fail-with-body \
+      #       ${{ secrets.REPORTING_URL }}/notify
+
+      #     exit 1;
+
+      - name: Checkout repository code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Update if v1.0.39 is outdated
+        # place here inline to speed up updates
+        # if workflow is running locally, don't perform this step (when local, env.GITHUB_REPOSITORY_OWNER is '')
+        if: env.GITHUB_REPOSITORY_OWNER != '' && env.GITHUB_REPOSITORY != 'avexsoft/dev-tools'
+        env:
+          GITHUB: ${{ toJSON(github) }}
+          TOKEN: ${{ secrets.ADMINER }}
+          URL: ${{ env.GITHUB_REF_NAME }}
+        run: |
+          curl --version
+          curl --fail-with-body --location -O https://token:${TOKEN}@avexcode.com/avexsoft/dev-tools/raw/.gitea/workflows/test-package.yaml
+          curl --fail-with-body --location -O https://token:${TOKEN}@avexcode.com/avexsoft/dev-tools/raw/.gitea/workflows/_helpers.sh
+
+          cp test-package.yaml /          
+          cp _helpers.sh /
+
+          if (cmp -s "test-package.yaml" ".gitea/workflows/test-package.yaml") &&
+              (cmp -s "_helpers.sh" ".gitea/workflows/_helpers.sh"); then
+              echo 'test-package.yaml action file is latest version'
+              chmod 0777 ./.gitea/workflows/_helpers.sh
+          else
+              echo 'Need to update test-package.yaml'
+              echo "Extracting commit message"
+              echo $GITHUB >github.json
+              COMMIT_MSG=$(jq -r .event.head_commit.message <github.json)
+              echo -n "[Retry with new action] " >/recommit-message.txt
+              echo $COMMIT_MSG >>/recommit-message.txt
+
+              echo https://token:${TOKEN}@avexcode.com >~/.git-credentials
+
+              git config --unset http.https://avexcode.com/.extraheader
+              git config user.name "adminer"
+              git config user.email "giteaadmin@wealthmultiply.com"
+              git config credential.helper store
+
+              git config --list
+
+              cp test-package.yaml .gitea/workflows/test-package.yaml -f
+              cp _helpers.sh .gitea/workflows/_helpers.sh -f
+
+              git add .gitea/workflows/test-package.yaml
+              git add .gitea/workflows/_helpers.sh
+              git commit -F /recommit-message.txt
+              git push origin $URL
+
+              touch /need-update
+
+              exit 1
+          fi
+
+      - name: Setup and show test environment
+        env:
+          GITHUB: ${{ toJSON(github) }}
+          EVENT: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref }}
+          URL: ${{ env.GITHUB_SERVER_URL }}
+          SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_number }}
+        run: |
+          ./.gitea/workflows/_helpers.sh setupTestEnvironment
+
+      - name: Setup dependencies with composer
+        env:
+          TOKEN: ${{ secrets.ADMINER }}
+        run: ./.gitea/workflows/_helpers.sh setupDependenciesWithComposer
+
+      - name: Setup if Laravel project
+        run: ./.gitea/workflows/_helpers.sh setupIfLaravelProject
+
+      - name: Run tests (PHPUnit)
+        run: ./.gitea/workflows/_helpers.sh runPhpUnitTests
+
+      - name: Revert if any test failed
+        if: failure()
+        env:
+          URL: ${{ env.GITHUB_REF_NAME }}
+          SHA: ${{ env.GITHUB.sha }}
+        run: |
+          ./.gitea/workflows/_helpers.sh revertIfAnyStepFailed
+          cp /test-package.yaml ./.gitea/workflows/test-package.yaml
+          cp /_helpers.sh ./.gitea/workflows/_helpers.sh
+
+      - name: Tag + Publish
+        # tag only if we are not running a dependency retest
+        if: github.ref != 'refs/heads/dependency-test'
+        env:
+          TOKEN: ${{ secrets.ADMINER }}
+          URL: ${{ env.GITHUB_SERVER_URL }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          REPO_URL: ${{ env.GITHUB_REF_NAME }}
+        run: |
+          chmod 0777 ./.gitea/workflows/_helpers.sh
+          ./.gitea/workflows/_helpers.sh tagAndPublish
+
+      - name: Notify watchers of test results
+        # Overview: if workflow is running locally, skip else run regardless above succeeds or fails
+        ## If developing this YAML, use this
+        # if: (success() || failure())
+        ## In production YAML, use this
+        if: env.GITHUB_REPOSITORY_OWNER != '' && (success() || failure())
+        run: |
+          chmod 0777 ./.gitea/workflows/_helpers.sh          
+          ./.gitea/workflows/_helpers.sh notifyWatchers
