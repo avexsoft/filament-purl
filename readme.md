@@ -10,11 +10,13 @@
 [![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/avexsoft/filament-purl/fix-php-code-style-issues.yml?branch=master&label=code%20style&style=flat-square)](https://github.com/avexsoft/filament-purl/actions?query=workflow%3A"Fix+PHP+code+styling"+branch%3Amaster)
 [![Total Downloads](https://img.shields.io/packagist/dt/avexsoft/filament-purl.svg?style=flat-square)](https://packagist.org/packages/avexsoft/filament-purl)
 
-Filament PURL is a Laravel package that seamlessly integrates with Filament to provide a user-friendly interface for managing permalinks (also known as persistent URLs or redirects). Easily create, view, edit, and delete URL redirects directly from your Filament admin panel. Keep your site's links stable and user-friendly, and manage SEO-friendly URLs with ease.
+This plugin allows you to define and manage pairs of short, memorable routes (also known as persistent URLs) that will redirect to a provided destination URL. This is useful when you have a bunch of URLs related to your project but are long and difficult to remember.
+
+E.g. You can redirect from https://example.com/r/google to https://www.google.com
 
 ## Installation
 
-You can install the package via composer:
+You can install the package via composer.
 
 ```bash
 composer require avexsoft/filament-purl
@@ -31,12 +33,6 @@ use Avexsoft\FilamentPurl\FilamentPurlPlugin;
 ])
 ```
 
-
-## Testing
-
-```bash
-composer test
-```
 
 ## Changelog
 
